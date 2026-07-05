@@ -1,0 +1,9 @@
+node_modules
+dist
+.env.local
+.git
+.gitignore
+database.json
+email_logs.json
+*.log
+README.md

@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Local development database (contains hashed passwords, real data)
+database.json
+email_logs.json
+
+# Stress-test seeding scripts (dev-only)
+stress_test_seeding.js
+stress_test_seeding.cjs

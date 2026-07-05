@@ -1,0 +1,8 @@
+{
+  "name": "Remix: BehaviorPulse",
+  "description": "A gamified school student behavior tracker allowing teachers to log behaviors, send automated parental notifications, and students to track their points history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
