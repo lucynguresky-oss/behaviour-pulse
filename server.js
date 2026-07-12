@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
@@ -18,8 +19,41 @@ dotenv.config();
 
 const PORT = process.env.PORT || 5174;
 
+// ─── Allowed origins ──────────────────────────────────────────────────────────
+// Any additional frontend domains (e.g. custom domains) can be added here.
+const ALLOWED_ORIGINS = [
+  // GitHub Pages deployment
+  'https://lucynguresky-oss.github.io',
+  // Local development
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  // Allow the Render domain itself (for in-page previews)
+  'https://behaviour-pulse.onrender.com',
+];
+
 async function startServer() {
   const app = express();
+
+  // ─── CORS — must be registered BEFORE all routes ────────────────────────────
+  // Allows the GitHub Pages frontend to call this API without browser blocks.
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow server-to-server calls (no Origin header) and whitelisted origins
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+          callback(null, true);
+        } else {
+          console.warn(`[CORS] Blocked request from origin: ${origin}`);
+          callback(new Error(`Origin "${origin}" is not allowed by CORS policy.`));
+        }
+      },
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
+    })
+  );
 
   // Setup Middleware
   app.use(express.json());
@@ -66,8 +100,8 @@ async function startServer() {
 
   // Broad error handler middleware
   app.use((err, req, res, next) => {
-    console.error("Unhandle Global Server Error:", err.stack);
-    res.status(500).json({ error: "A server-side bottleneck occurred inside BehaviorPulse." });
+    console.error("Unhandled Global Server Error:", err.stack);
+    res.status(500).json({ error: "A server-side error occurred inside BehaviorPulse." });
   });
 
   // Connect database and bind port
@@ -82,4 +116,3 @@ async function startServer() {
 }
 
 startServer();
-
