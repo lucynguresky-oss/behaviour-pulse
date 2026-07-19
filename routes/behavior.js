@@ -369,8 +369,8 @@ router.post('/review/:id', verifyToken, requireAnyRole(['deputy', 'principal']),
   }
 });
 
-// GET /api/behavior/email-logs (Teachers only)
-router.get('/email-logs', verifyToken, requireRole('teacher'), async (req, res) => {
+// GET /api/behavior/email-logs (Teachers, Deputies, Principals)
+router.get('/email-logs', verifyToken, requireAnyRole(['teacher', 'deputy', 'principal']), async (req, res) => {
   try {
     const logs = await getEmailLogs({ schoolId: req.user.schoolId || 'school-main' });
     const isLiveSmtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
@@ -391,17 +391,36 @@ router.get('/email-logs', verifyToken, requireRole('teacher'), async (req, res) 
   }
 });
 
-// GET /api/behavior/email-logs/preview/:id (Public sandboxed viewer)
-router.get('/email-logs/preview/:id', async (req, res) => {
+
+// GET /api/behavior/email-logs/preview/:id
+// Authenticated — Teachers, Deputies, and Principals only.
+// School-scoped: users can only preview logs belonging to their own school.
+router.get('/email-logs/preview/:id', verifyToken, requireAnyRole(['teacher', 'deputy', 'principal']), async (req, res) => {
   const { id } = req.params;
+
+  // HTML-escape helper — prevents stored-XSS from user-controlled fields
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  );
+
   try {
     const logs = await getEmailLogs({ _id: id });
     const log = logs[0];
     if (!log) {
       return res.status(404).send(`
         <div style="font-family: sans-serif; text-align: center; padding: 50px; color: #475569;">
-          <h2>⚠️ Email Log Not Found</h2>
-          <p>The requested email notification dispatch record was not found or has been clear indexed.</p>
+          <h2>&#x26A0;&#xFE0F; Email Log Not Found</h2>
+          <p>The requested email notification dispatch record was not found or has been cleared.</p>
+        </div>
+      `);
+    }
+
+    // School-scope ownership check — users cannot view another school's logs
+    if (log.schoolId && log.schoolId !== req.user.schoolId && req.user.role !== 'super_admin') {
+      return res.status(403).send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 50px; color: #475569;">
+          <h2>&#x1F512; Access Denied</h2>
+          <p>You do not have permission to view this log.</p>
         </div>
       `);
     }
@@ -410,12 +429,13 @@ router.get('/email-logs/preview/:id', async (req, res) => {
     const pointsText = isPositive ? `+${log.pointsChange}` : `${log.pointsChange}`;
     const bannerColor = isPositive ? "#4f46e5" : "#e11d48";
 
+    // All user-supplied fields are escaped before interpolation
     const previewHtml = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>${log.subject || 'BehaviorPulse Hub Bulletin'}</title>
+          <title>${esc(log.subject) || 'BehaviorPulse Hub Bulletin'}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 10px; color: #0f172a; }
             .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #edf2f7; }
@@ -434,38 +454,38 @@ router.get('/email-logs/preview/:id', async (req, res) => {
         </head>
         <body>
           <div class="sandbox-banner">
-            🖥️ BehaviorPulse System Sandbox: Interactive Email Delivery Log Preview
+            &#x1F5A5;&#xFE0F; BehaviorPulse System Sandbox: Interactive Email Delivery Log Preview
           </div>
           <div class="container">
             <div class="header">
               <h1>BehaviorPulse Hub</h1>
-              <div class="points-badge">${pointsText} Points Standing</div>
+              <div class="points-badge">${esc(pointsText)} Points Standing</div>
             </div>
             
             <div class="content">
-              <p style="font-size: 15px; margin-top: 0; font-weight: 500;">This official behavioral standing update is customized for the **${log.targetLabel}**.</p>
+              <p style="font-size: 15px; margin-top: 0; font-weight: 500;">This official behavioral standing update is customized for <strong>${esc(log.targetLabel)}</strong>.</p>
               
               <div class="ai-message-card">
-                "${log.aiGeneratedContext}"
+                &ldquo;${esc(log.aiGeneratedContext)}&rdquo;
               </div>
 
-              <h4 style="margin: 28px 0 10px 0; font-size: 12px; text-transform: uppercase; tracking-wider; color: #4f46e5;">Behavior Audit Trails</h4>
+              <h4 style="margin: 28px 0 10px 0; font-size: 12px; text-transform: uppercase; color: #4f46e5;">Behavior Audit Trails</h4>
               <table class="info-table">
                 <tr>
                   <td class="label-cell">Target Student:</td>
-                  <td>${log.studentName}</td>
+                  <td>${esc(log.studentName)}</td>
                 </tr>
                 <tr>
                   <td class="label-cell">Audience Track:</td>
-                  <td>${log.targetLabel}</td>
+                  <td>${esc(log.targetLabel)}</td>
                 </tr>
                 <tr>
                   <td class="label-cell">Points Adjusted:</td>
-                  <td style="font-weight: bold; color: ${bannerColor};">${pointsText} pts</td>
+                  <td style="font-weight: bold; color: ${bannerColor};">${esc(pointsText)} pts</td>
                 </tr>
                 <tr>
                   <td class="label-cell">Original Logs:</td>
-                  <td>${log.reason}</td>
+                  <td>${esc(log.reason)}</td>
                 </tr>
               </table>
 
@@ -474,19 +494,38 @@ router.get('/email-logs/preview/:id', async (req, res) => {
             
             <div class="footer">
               <p>&copy; 2026 BehaviorPulse System Office. Automated delivery engine.</p>
-              <p class="meta-p">Dispatched targets: ${log.recipientEmails.join(", ")}</p>
+              <p class="meta-p">Dispatched targets: ${esc((log.recipientEmails || []).join(', '))}</p>
             </div>
           </div>
         </body>
       </html>
     `;
-    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // Prevent the preview from being framed or from leaking referrer
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'no-referrer');
     return res.send(previewHtml);
   } catch (err) {
     console.error("Failed to generate log preview HTML:", err.message);
-    return res.status(500).send("Internal Server error rendering log preview.");
+    return res.status(500).send("Internal server error rendering log preview.");
   }
 });
+
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 10px; color: #0f172a; }
+            .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #edf2f7; }
+            .header { background-color: ${bannerColor}; color: #ffffff; padding: 32px 24px; text-align: center; }
+            .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+            .points-badge { display: inline-block; padding: 6px 16px; border-radius: 9999px; font-size: 14px; font-weight: 800; background-color: rgba(255, 255, 255, 0.18); margin-top: 12px; border: 1px solid rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.05em; }
+            .content { padding: 32px 28px; line-height: 1.6; }
+            .ai-message-card { background-color: #fcfdfd; border-left: 4px solid ${bannerColor}; padding: 20px; border-radius: 8px; margin: 24px 0; font-style: italic; color: #1e293b; border-top: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
+            .info-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; color: #475569; }
+            .info-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+            .info-table td.label-cell { font-weight: bold; width: 140px; color: #1e293b; }
+            .footer { background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 24px; text-align: center; font-size: 12px; color: #64748b; }
+            .meta-p { margin-top: 4px; font-size: 10px; color: #94a3b8; }
+
+
 
 // POST /api/behavior/email-logs/retry-all (Teachers only)
 router.post('/email-logs/retry-all', verifyToken, requireRole('teacher'), async (req, res) => {

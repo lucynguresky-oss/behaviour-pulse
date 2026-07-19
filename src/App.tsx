@@ -211,7 +211,7 @@ export default function App() {
         fetchStudentDashboard();
       }
     }
-  }, [token]);
+  }, [token, currentUser?.role]);
 
   const handleDownloadCSV = () => {
     if (filteredTeacherLogs.length === 0) {

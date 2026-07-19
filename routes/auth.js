@@ -4,7 +4,16 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'behavior_pulse_fallback_secure_key_102030';
+
+// Refuse to start if JWT_SECRET is not explicitly set — never fall back to a
+// known/committed string, as anyone could forge a super_admin token with it.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error(
+    '[auth.js] JWT_SECRET environment variable is not set. ' +
+    'Set it in your .env file or Render dashboard before starting the server.'
+  );
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {

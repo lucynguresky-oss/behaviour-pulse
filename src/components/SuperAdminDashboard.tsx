@@ -164,10 +164,10 @@ export default function SuperAdminDashboard({
     s.subdomain.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Compute aggregated stats
+  // Compute aggregated stats — guard against missing stats object (Bug #13)
   const totalSchools = schools.length;
-  const totalStudents = schools.reduce((acc, s) => acc + s.stats.students, 0);
-  const totalTeachers = schools.reduce((acc, s) => acc + s.stats.teachers, 0);
+  const totalStudents = schools.reduce((acc, s) => acc + (s.stats?.students ?? 0), 0);
+  const totalTeachers = schools.reduce((acc, s) => acc + (s.stats?.teachers ?? 0), 0);
   const activeSchools = schools.filter(s => s.status === 'active').length;
 
   return (
