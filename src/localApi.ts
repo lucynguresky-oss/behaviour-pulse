@@ -446,50 +446,51 @@ async function handleLocalRequest(
     const { reason, studentName, pointsChange } = body || {};
     const raw = ((reason || '') as string).trim();
     const pts = Number(pointsChange) || 0;
-    const name = (studentName as string || '').trim();
+    const name = ((studentName as string) || '').trim();
 
-    // Detect sentiment from word signals and points direction
-    const positiveSignals = ['active', 'help', 'assist', 'volunteer', 'excel', 'great', 'good',
+    if (!raw) return ok({ success: true, refined: '' });
+
+    // Detect positive vs negative sentiment
+    const positiveWords = ['active', 'help', 'assist', 'volunteer', 'excel', 'great', 'good',
       'kind', 'leader', 'participat', 'respect', 'effort', 'focus', 'improv', 'achiev',
       'polite', 'cooperat', 'support', 'contribut', 'honest', 'punctual', 'creative',
-      'outstanding', 'fantastic', 'praise', 'calm', 'listen', 'motivat', 'pass', 'succeed'];
-    const negativeSignals = ['disrupt', 'fight', 'argue', 'late', 'absent', 'rude', 'bully',
+      'outstanding', 'fantastic', 'calm', 'listen', 'motiv', 'pass', 'succeed', 'complet',
+      'on time', 'award', 'commend', 'clean', 'tidy', 'kind', 'responsible', 'attentive'];
+    const negativeWords = ['disrupt', 'fight', 'argue', 'late', 'absent', 'rude', 'bully',
       'cheat', 'phone', 'distract', 'ignore', 'refuse', 'fail', 'aggressive', 'disrespect',
-      'misbehav', 'shout', 'threw', 'broke', 'damage', 'sleep', 'miss', 'skip', 'absent'];
+      'misbehav', 'shout', 'threw', 'broke', 'damage', 'sleep', 'miss', 'skip', 'vandal',
+      'inappropriate', 'unauthoris', 'unauthorized', 'verbal', 'physical', 'not complet'];
 
     const rawLower = raw.toLowerCase();
-    const posHits = positiveSignals.filter(w => rawLower.includes(w)).length;
-    const negHits = negativeSignals.filter(w => rawLower.includes(w)).length;
-    const isPositive = posHits > negHits || (posHits === negHits && pts >= 0);
+    const posScore = positiveWords.filter(w => rawLower.includes(w)).length;
+    const negScore = negativeWords.filter(w => rawLower.includes(w)).length;
+    const isPositive = posScore >= negScore && pts >= 0;
 
-    // Capitalise first letter of the raw observation
-    const capitalised = raw.charAt(0).toUpperCase() + raw.slice(1);
-    // Ensure it ends with a period
-    const sentence = capitalised.endsWith('.') || capitalised.endsWith('!') || capitalised.endsWith('?')
-      ? capitalised : `${capitalised}.`;
+    // Capitalise and ensure the raw note ends properly
+    const note = raw.charAt(0).toUpperCase() + raw.slice(1) + (raw.endsWith('.') || raw.endsWith('!') ? '' : '.');
+    const n = name || 'The student';
 
     let polished: string;
     if (isPositive) {
-      const closings = [
-        `This commendable behaviour reflects positively on ${name || 'the student'}'s character and sets an excellent example for the class.`,
-        `${name || 'The student'}'s positive conduct is acknowledged and greatly appreciated by the school community.`,
-        `This demonstrates the kind of responsibility and initiative that BehaviorPulse recognises and rewards.`,
-        `Such positive engagement is a strong reflection of ${name || 'the student'}'s commitment to their academic growth.`,
+      const templates = [
+        `${n} demonstrated commendable conduct during this period — ${raw.toLowerCase().endsWith('.') ? raw.toLowerCase().slice(0,-1) : raw.toLowerCase()}. This level of positive engagement is recognised and rewarded accordingly within the BehaviorPulse standing system.`,
+        `It is noted with appreciation that ${n} ${raw.toLowerCase()}. This behaviour sets a strong example for peers and reflects well on ${n.split(' ')[0]}'s character and commitment to the school community.`,
+        `Formal commendation: ${n} has been observed to ${raw.toLowerCase()} This positive action has been recorded in the academic ledger and earns the corresponding reward points.`,
+        `${note} The faculty acknowledges ${n}'s positive disposition and encourages a continued commitment to this standard of behaviour throughout the term.`,
       ];
-      polished = `${sentence} ${closings[Math.floor(Math.random() * closings.length)]}`;
+      polished = templates[Math.floor(Math.random() * templates.length)];
     } else {
-      const closings = [
-        `This matter has been formally recorded and the school will follow up with appropriate intervention and guidance to support ${name || 'the student'}'s behavioural development.`,
-        `Parents and guardians will be informed as appropriate. The school remains committed to helping ${name || 'the student'} reach their full potential through structured support.`,
-        `A constructive improvement plan will be discussed with ${name || 'the student'} to address this and encourage more positive engagement going forward.`,
-        `This record serves as a formal note on the student's conduct. The school will provide the necessary guidance to facilitate positive behavioural change.`,
+      const templates = [
+        `Conduct concern formally recorded: ${n} was observed to ${raw.toLowerCase()} This incident has been logged and the appropriate intervention measures will be coordinated with parents and school administration.`,
+        `${note} This behaviour falls below the expected school standards and has been formally noted on ${n}'s conduct ledger. ${n.split(' ')[0]} will be supported through a structured improvement plan to address this matter.`,
+        `Incident report — ${n}: ${raw.toLowerCase()} The school remains committed to ${n.split(' ')[0]}'s development and will engage appropriate pastoral support to prevent recurrence.`,
+        `${note} This has been escalated for administrative awareness. A follow-up meeting will be arranged between the school, ${n.split(' ')[0]}, and relevant guardians to agree on a behavioural improvement pathway.`,
       ];
-      polished = `${sentence} ${closings[Math.floor(Math.random() * closings.length)]}`;
+      polished = templates[Math.floor(Math.random() * templates.length)];
     }
 
     return ok({ success: true, refined: polished });
   }
-
 
   // ── AI: Parse roster text ──────────────────────────────────────────────────
   if (url === '/api/ai/parse-roster' && method === 'POST') {

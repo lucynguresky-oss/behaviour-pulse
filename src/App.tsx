@@ -242,7 +242,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    // Only remove the auth session — do NOT wipe the database (bp_db_v3)
+    // or all student point changes will be lost when users switch accounts!
+    localStorage.removeItem('behavior_pulse_token');
+    localStorage.removeItem('behavior_pulse_user');
     setToken(null);
     setCurrentUser(null);
     setStudents([]);
